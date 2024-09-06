@@ -23713,11 +23713,6 @@ jongkyo                         // (c) 1985 Kiwako
 @source:kiwako/koikoi.cpp
 koikoi                          // (c) 1983 Kiwako
 
-@source:kiwako/mrjong.cpp
-blkbustr                        // (c) 1983 Kiwako + ECI license
-crazyblk                        // (c) 1983 Kiwako + ECI license
-mrjong                          // (c) 1983 Kiwako
-
 @source:koei/pasogo.cpp
 pasogo                          // KOEI PasoGo
 
@@ -39033,6 +39028,11 @@ yachtmn                         // (c) 1982 [Sanritsu] Esco
 
 @source:sanritsu/mjkjidai.cpp
 mjkjidai                        // (c) 1986 Sanritsu
+
+@source:sanritsu/mrjong.cpp
+blkbustr                        // (c) 1983 Kiwako + ECI license
+crazyblk                        // (c) 1983 Kiwako + ECI license
+mrjong                          // (c) 1983 Kiwako
 
 @source:sanritsu/ron.cpp
 ron2                            // (c) 1981 Sanritsu
