@@ -8,6 +8,9 @@
 
     driver by Nicola Salmoria
 
+    PCB footage:
+    https://youtu.be/Ikz1t7iSQYc
+
 
     PCB Layout (Combat Hawk)
     -----------------------
@@ -149,8 +152,6 @@ private:
 	tilemap_t *m_bg_tilemap = nullptr;
 	tilemap_t *m_fg_tilemap = nullptr;
 	template <int const Which> TILE_GET_INFO_MEMBER(get_tile_info);
-	//TILE_GET_INFO_MEMBER(get_bg_tile_info);
-	//TILE_GET_INFO_MEMBER(get_fg_tile_info);
 
 	void palette(palette_device &palette) const;
 
@@ -579,17 +580,17 @@ void bankp_state::bankp(machine_config &config)
  *************************************/
 
 ROM_START( bankp )
-	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_REGION( 0xe000, "maincpu", 0 )
 	ROM_LOAD( "epr-6175.7e",      0x0000, 0x4000, CRC(044552b8) SHA1(8d50ba062483d4789cfd3ed86cea53dff0ff6968) )
 	ROM_LOAD( "epr-6174.7f",      0x4000, 0x4000, CRC(d29b1598) SHA1(8c1ee4d23d8d6f93af3e22f2cba189b0055994fb) )
 	ROM_LOAD( "epr-6173.7h",      0x8000, 0x4000, CRC(b8405d38) SHA1(0f62a972f38b4ddcea77eb0e1d76c70ddbcb7b11) )
 	ROM_LOAD( "epr-6176.7d",      0xc000, 0x2000, CRC(c98ac200) SHA1(1bdb87868deebe03da18280e617530c24118da1c) )
 
-	ROM_REGION( 0x04000, "fgtiles", 0 )
+	ROM_REGION( 0x4000, "fgtiles", 0 )
 	ROM_LOAD( "epr-6165.5l",      0x0000, 0x2000, CRC(aef34a93) SHA1(513895cd3144977b3d9b5ac7f2bf40384d69e157) )
 	ROM_LOAD( "epr-6166.5k",      0x2000, 0x2000, CRC(ca13cb11) SHA1(3aca0b0d3f052a742e1cd0b96bfad834e78fcd7d) )
 
-	ROM_REGION( 0x0c000, "bgtiles", 0 )
+	ROM_REGION( 0xc000, "bgtiles", 0 )
 	ROM_LOAD( "epr-6172.5b",      0x0000, 0x2000, CRC(c4c4878b) SHA1(423143d81408eda96f87bdc3a306517c473cbe00) )
 	ROM_LOAD( "epr-6171.5d",      0x2000, 0x2000, CRC(a18165a1) SHA1(9a7513ea84f9231edba4e637df28a1705c8cdeb0) )
 	ROM_LOAD( "epr-6170.5e",      0x4000, 0x2000, CRC(b58aa8fa) SHA1(432b43cd9af4e3dab579cfd191b731aa11ceb121) )
@@ -608,17 +609,17 @@ ROM_START( bankp )
 ROM_END
 
 ROM_START( bankpt )
-	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_REGION( 0xe000, "maincpu", 0 )
 	ROM_LOAD( "11.bin",       0x0000, 0x4000, CRC(056755ce) SHA1(7375b856a5757b8b6336ccc16df460a79c3f25a7) )
 	ROM_LOAD( "10.bin",       0x4000, 0x4000, CRC(d29b1598) SHA1(8c1ee4d23d8d6f93af3e22f2cba189b0055994fb) )
 	ROM_LOAD( "9.bin",        0x8000, 0x4000, CRC(08a8137b) SHA1(1dbda68825101d5474eecc58ff9b5f9fe79b0b33) )
 	ROM_LOAD( "12.bin",       0xc000, 0x2000, CRC(c98ac200) SHA1(1bdb87868deebe03da18280e617530c24118da1c) )
 
-	ROM_REGION( 0x04000, "fgtiles", 0 )
+	ROM_REGION( 0x4000, "fgtiles", 0 )
 	ROM_LOAD( "1.bin",        0x0000, 0x2000, CRC(aef34a93) SHA1(513895cd3144977b3d9b5ac7f2bf40384d69e157) )
 	ROM_LOAD( "2.bin",        0x2000, 0x2000, CRC(ca13cb11) SHA1(3aca0b0d3f052a742e1cd0b96bfad834e78fcd7d) )
 
-	ROM_REGION( 0x0c000, "bgtiles", 0 )
+	ROM_REGION( 0xc000, "bgtiles", 0 )
 	ROM_LOAD( "8.bin",        0x0000, 0x2000, CRC(c4c4878b) SHA1(423143d81408eda96f87bdc3a306517c473cbe00) )
 	ROM_LOAD( "7.bin",        0x2000, 0x2000, CRC(a18165a1) SHA1(9a7513ea84f9231edba4e637df28a1705c8cdeb0) )
 	ROM_LOAD( "6.bin",        0x4000, 0x2000, CRC(b58aa8fa) SHA1(432b43cd9af4e3dab579cfd191b731aa11ceb121) )
@@ -637,17 +638,17 @@ ROM_START( bankpt )
 ROM_END
 
 ROM_START( combh )
-	ROM_REGION( 0x10000, "maincpu", 0 )
+	ROM_REGION( 0xe000, "maincpu", 0 )
 	ROM_LOAD( "epr-10904.7e",      0x0000, 0x4000, CRC(4b106335) SHA1(1cdfac301b52ccd98d09b52089bb2a45fc9afdbb) )
 	ROM_LOAD( "epr-10905.7f",      0x4000, 0x4000, CRC(a76fc390) SHA1(9ffc453010ffb93db5f549e3cc1e0a4eb39ac61c) )
 	ROM_LOAD( "epr-10906.7h",      0x8000, 0x4000, CRC(16d54885) SHA1(e00fc618bb1a1f8c160fe2a0d4de6d9750313643) )
 	ROM_LOAD( "epr-10903.7d",      0xc000, 0x2000, CRC(b7a59cab) SHA1(6321fa9bdf580d76267b13fcf7dc066a45e0c926) )
 
-	ROM_REGION( 0x04000, "fgtiles", 0 )
+	ROM_REGION( 0x4000, "fgtiles", 0 )
 	ROM_LOAD( "epr-10914.5l",      0x0000, 0x2000, CRC(7d7a2340) SHA1(7411131bf929eaf11e12047eea74158daf8dd274) )
 	ROM_LOAD( "epr-10913.5k",      0x2000, 0x2000, CRC(d5c1a8ae) SHA1(4f05fd183918bcc5e7b312df5a22f92756cec01d) )
 
-	ROM_REGION( 0x0c000, "bgtiles", 0 )
+	ROM_REGION( 0xc000, "bgtiles", 0 )
 	ROM_LOAD( "epr-10907.5b",      0x0000, 0x2000, CRC(08e5eea3) SHA1(1ab46f9f390a4d8647b0bc07bff66f4d7f47b19e) )
 	ROM_LOAD( "epr-10908.5d",      0x2000, 0x2000, CRC(d9e413f5) SHA1(c9eb038eed97fcdb56c368f5540b372a1c7b4250) )
 	ROM_LOAD( "epr-10909.5e",      0x4000, 0x2000, CRC(fec7962c) SHA1(1e58cb19d3a80164a9968e42eea0503364dad017) )
