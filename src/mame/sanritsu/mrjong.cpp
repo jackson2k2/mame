@@ -96,11 +96,14 @@ private:
 	required_device<palette_device> m_palette;
 	required_device_array<sn76489_device, 2> m_sn76489;
 
+	// internal state
+	bool m_nmi_mask = false;
+
 	// video
 	void videoram_w(offs_t offset, u8 data);
 	void colorram_w(offs_t offset, u8 data);
 
-	void flipscreen_w(u8 data);
+	void video_control_w(u8 data);
 
 	void palette(palette_device &palette) const;
 
@@ -110,6 +113,8 @@ private:
 	void draw_sprites(bitmap_ind16 &bitmap, rectangle const &cliprect);
 
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
+
+	void vblank_interrupt(int state);
 
 	// address maps
 	void program_map(address_map &map);
@@ -196,9 +201,22 @@ void mrjong_state::colorram_w(offs_t offset, u8 data)
 	}
 }
 
-void mrjong_state::flipscreen_w(u8 data)
+void mrjong_state::vblank_interrupt(int state)
 {
-	// are there any other bits?
+	if (state && m_nmi_mask)
+		m_maincpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
+}
+
+void mrjong_state::video_control_w(u8 data)
+{
+	// TODO: clearly output latch, but investigate other bits first
+	if (m_nmi_mask != BIT(data, 1))
+	{
+		m_nmi_mask = BIT(data, 1);
+		if (!m_nmi_mask)
+			m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
+	}
+
 	if (flip_screen() != BIT(data, 2))
 	{
 		flip_screen_set(BIT(data, 2));
@@ -219,6 +237,8 @@ TILE_GET_INFO_MEMBER(mrjong_state::get_bg_tile_info)
 
 void mrjong_state::video_start()
 {
+	save_item(NAME(m_nmi_mask));
+
 	m_bg_tilemap = &machine().tilemap().create(*m_gfxdecode, tilemap_get_info_delegate(*this, FUNC(mrjong_state::get_bg_tile_info)), TILEMAP_SCAN_ROWS_FLIP_XY, 8, 8, 32, 32);
 }
 
@@ -275,7 +295,7 @@ void mrjong_state::io_map(address_map &map)
 {
 	map.global_mask(0xff);
 
-	map(0x00, 0x00).portr("P2").w(FUNC(mrjong_state::flipscreen_w));
+	map(0x00, 0x00).portr("P2").w(FUNC(mrjong_state::video_control_w));
 	map(0x01, 0x01).portr("P1").w(m_sn76489[0], FUNC(sn76489_device::write));
 	map(0x02, 0x02).portr("DSW").w(m_sn76489[1], FUNC(sn76489_device::write));
 	map(0x03, 0x03).portr("UNK");
@@ -393,7 +413,7 @@ void mrjong_state::mrjong(machine_config &config)
 	m_screen->set_raw(MASTER_CLOCK / 3, 320, 0, 240, 262, 16, 240); // hand adjusted for 61.5Hz
 	m_screen->set_screen_update(FUNC(mrjong_state::screen_update));
 	m_screen->set_palette(m_palette);
-	m_screen->screen_vblank().set_inputline(m_maincpu, INPUT_LINE_NMI);
+	m_screen->screen_vblank().set(FUNC(mrjong_state::vblank_interrupt));
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_mrjong);
 	PALETTE(config, m_palette, FUNC(mrjong_state::palette), 4 * 32, 16);

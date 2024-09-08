@@ -11,6 +11,8 @@
     PCB footage:
     https://youtu.be/Ikz1t7iSQYc
 
+    TODO: waitstates
+
 
     PCB Layout (Combat Hawk)
     -----------------------
@@ -92,6 +94,7 @@
 #include "emu.h"
 
 #include "cpu/z80/z80.h"
+#include "machine/output_latch.h"
 #include "sound/sn76496.h"
 #include "video/resnet.h"
 
@@ -111,6 +114,7 @@ public:
 		m_videoram(*this, "videoram%u", 1U),
 		m_colorram(*this, "colorram%u", 1U),
 		m_maincpu(*this, "maincpu"),
+		m_videolatch(*this, "videolatch"),
 		m_screen(*this, "screen"),
 		m_gfxdecode(*this, "gfxdecode"),
 		m_palette(*this, "palette"),
@@ -131,6 +135,7 @@ private:
 
 	// devices
 	required_device<cpu_device> m_maincpu;
+	required_device<output_latch_device> m_videolatch;
 	required_device<screen_device> m_screen;
 	required_device<gfxdecode_device> m_gfxdecode;
 	required_device<palette_device> m_palette;
@@ -138,26 +143,29 @@ private:
 
 	// internal state
 	u8 m_scroll_x = 0U;
-	u8 m_priority = 0U;
+	bool m_priority[2]{};
 	bool m_color_hi = false;
 	bool m_display_on = false;
 	bool m_nmi_mask = false;
 
 	// video-related
 	void scroll_w(u8 data);
-	template <int const Which> void videoram_w(offs_t offset, u8 data);
-	template <int const Which> void colorram_w(offs_t offset, u8 data);
-	void video_control_w(u8 data);
+	template <int Which> void videoram_w(offs_t offset, u8 data);
+	template <int Which> void colorram_w(offs_t offset, u8 data);
+
+	template <int Bit> void priority_w(int state);
+	void display_on_w(int state);
+	void color_hi_w(int state);
+	void nmi_w(int state);
+	void vblank_nmi(int state);
 
 	tilemap_t *m_bg_tilemap = nullptr;
 	tilemap_t *m_fg_tilemap = nullptr;
-	template <int const Which> TILE_GET_INFO_MEMBER(get_tile_info);
+	template <int Which> TILE_GET_INFO_MEMBER(get_tile_info);
 
 	void palette(palette_device &palette) const;
 
 	u32 screen_update(screen_device &screen, bitmap_ind16 &bitmap, rectangle const &cliprect);
-
-	void vblank_interrupt(int state);
 
 	// address maps
 	void io_map(address_map &map);
@@ -246,49 +254,61 @@ void bankp_state::scroll_w(u8 data)
 	m_scroll_x = data;
 }
 
-template <int const Which>
+template <int Which>
 void bankp_state::videoram_w(offs_t offset, u8 data)
 {
-	m_videoram[Which][offset] = data;
-	(Which ? m_bg_tilemap : m_fg_tilemap)->mark_tile_dirty(offset);
+	if (m_videoram[Which][offset] != data)
+	{
+		m_videoram[Which][offset] = data;
+		(Which ? m_bg_tilemap : m_fg_tilemap)->mark_tile_dirty(offset);
+	}
 }
 
-template <int const Which>
+template <int Which>
 void bankp_state::colorram_w(offs_t offset, u8 data)
 {
-	m_colorram[Which][offset] = data;
-	(Which ? m_bg_tilemap : m_fg_tilemap)->mark_tile_dirty(offset);
-}
-
-void bankp_state::video_control_w(u8 data)
-{
-	// bits 0-1 are playfield priority
-	// TODO: understand how this works
-	m_priority = data & 0x03;
-
-	// bit 2 turns on display
-	m_display_on = BIT(data, 2);
-
-	// bit 3 controls color prom d4
-	if (m_color_hi != BIT(data, 3))
+	if (m_colorram[Which][offset] != data)
 	{
-		m_color_hi = BIT(data, 3);
-		machine().tilemap().mark_all_dirty();
+		m_colorram[Which][offset] = data;
+		(Which ? m_bg_tilemap : m_fg_tilemap)->mark_tile_dirty(offset);
 	}
-
-	// bit 4 enables vblank NMI
-	m_nmi_mask = BIT(data, 4);
-
-	// bit 5 controls screen flip
-	flip_screen_set(BIT(data, 5));
-
-	// bits 6-7 N/C
 }
 
-template <int const Which>
+template <int Bit>
+void bankp_state::priority_w(int state)
+{
+	m_priority[Bit] = state;
+}
+
+void bankp_state::display_on_w(int state)
+{
+	m_display_on = state;
+}
+
+void bankp_state::color_hi_w(int state)
+{
+	m_color_hi = state;
+	machine().tilemap().mark_all_dirty();
+}
+
+void bankp_state::nmi_w(int state)
+{
+	m_nmi_mask = state;
+	if (!m_nmi_mask)
+		m_maincpu->set_input_line(INPUT_LINE_NMI, CLEAR_LINE);
+}
+
+void bankp_state::vblank_nmi(int state)
+{
+	if (state && m_nmi_mask)
+		m_maincpu->set_input_line(INPUT_LINE_NMI, ASSERT_LINE);
+}
+
+template <int Which>
 TILE_GET_INFO_MEMBER(bankp_state::get_tile_info)
 {
-	int const Width  = Which ? 3 : 2;
+	int constexpr Width = Which ? 3 : 2;
+
 	u8 const attr    = m_colorram[Which][tile_index];
 	u8 const bank    = attr & make_bitmask<u8>(Width);
 	bool const flipx = BIT(attr, Width);
@@ -317,7 +337,7 @@ void bankp_state::video_start()
 
 void bankp_state::video_reset()
 {
-	video_control_w(0);
+	m_videolatch->write(0);
 }
 
 
@@ -346,24 +366,20 @@ u32 bankp_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, rect
 		m_bg_tilemap->set_scrollx(0, 0);
 	}
 
-	// only one bit matters?
-	switch (m_priority)
+	switch (m_priority[0] | m_priority[1] << 1)
 	{
-	case 0: // combat hawk uses this
-		m_bg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE);
-		m_fg_tilemap->draw(screen, bitmap, cliprect);
-		break;
+	case 0:
 	case 1:
 		m_bg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE);
 		m_fg_tilemap->draw(screen, bitmap, cliprect);
 		break;
 	case 2:
-		m_fg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE);
+		m_bg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE);
+		m_fg_tilemap->draw(screen, bitmap, cliprect);
 		m_bg_tilemap->draw(screen, bitmap, cliprect);
 		break;
 	case 3:
-		m_fg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE); // just a guess
-		m_bg_tilemap->draw(screen, bitmap, cliprect);
+		m_bg_tilemap->draw(screen, bitmap, cliprect, TILEMAP_DRAW_OPAQUE);
 		break;
 	}
 
@@ -380,10 +396,10 @@ u32 bankp_state::screen_update(screen_device &screen, bitmap_ind16 &bitmap, rect
 void bankp_state::prg_map(address_map &map)
 {
 	map(0x0000, 0xdfff).rom();
-	map(0xe000, 0xefff).ram();
-	map(0xf000, 0xf3ff).ram().w(FUNC(bankp_state::videoram_w<0>)).share(m_videoram[0]);
+	map(0xe000, 0xe7ff).mirror(0x800).ram(); // WRAM
+	map(0xf000, 0xf3ff).ram().w(FUNC(bankp_state::videoram_w<0>)).share(m_videoram[0]); // RRAM
 	map(0xf400, 0xf7ff).ram().w(FUNC(bankp_state::colorram_w<0>)).share(m_colorram[0]);
-	map(0xf800, 0xfbff).ram().w(FUNC(bankp_state::videoram_w<1>)).share(m_videoram[1]);
+	map(0xf800, 0xfbff).ram().w(FUNC(bankp_state::videoram_w<1>)).share(m_videoram[1]); // SRAM
 	map(0xfc00, 0xffff).ram().w(FUNC(bankp_state::colorram_w<1>)).share(m_colorram[1]);
 }
 
@@ -394,9 +410,11 @@ void bankp_state::io_map(address_map &map)
 	map(0x00, 0x00).portr("IN0").w(m_sn76489[0], FUNC(sn76489_device::write));
 	map(0x01, 0x01).portr("IN1").w(m_sn76489[1], FUNC(sn76489_device::write));
 	map(0x02, 0x02).portr("IN2").w(m_sn76489[2], FUNC(sn76489_device::write));
-	map(0x04, 0x04).portr("DSW1");
+	// (0x03, 0x03) - decoded but unused
+	map(0x04, 0x04).portr("DSW");
 	map(0x05, 0x05).w(FUNC(bankp_state::scroll_w));
-	map(0x07, 0x07).w(FUNC(bankp_state::video_control_w));
+	// (0x06, 0x06) - decoded but unused
+	map(0x07, 0x07).w(m_videolatch, FUNC(output_latch_device::write));
 }
 
 
@@ -433,7 +451,7 @@ static INPUT_PORTS_START( bankp )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_COIN2 )
 	PORT_BIT( 0xf8, IP_ACTIVE_HIGH, IPT_UNUSED )
 
-	PORT_START("DSW1")
+	PORT_START("DSW")
 	PORT_DIPNAME( 0x03, 0x00, "Coin Switch 1" )        PORT_DIPLOCATION("SW1:1,2")
 	PORT_DIPSETTING(    0x03, DEF_STR( 3C_1C ) )
 	PORT_DIPSETTING(    0x02, DEF_STR( 2C_1C ) )
@@ -474,7 +492,7 @@ static INPUT_PORTS_START( combh )
 	PORT_BIT( 0x04, IP_ACTIVE_HIGH, IPT_JOYSTICK_DOWN ) PORT_2WAY PORT_COCKTAIL
 	PORT_BIT( 0x08, IP_ACTIVE_HIGH, IPT_UNUSED )
 
-	PORT_MODIFY("DSW1")
+	PORT_MODIFY("DSW")
 	PORT_DIPNAME( 0x01, 0x00, DEF_STR( Flip_Screen ) )     PORT_DIPLOCATION("SW1:1")
 	PORT_DIPSETTING(    0x00, DEF_STR( Off ) )
 	PORT_DIPSETTING(    0x01, DEF_STR( On ) )
@@ -537,15 +555,9 @@ GFXDECODE_END
  *
  *************************************/
 
-void bankp_state::vblank_interrupt(int state)
-{
-	if (state && m_nmi_mask)
-		m_maincpu->pulse_input_line(INPUT_LINE_NMI, attotime::zero);
-}
-
 void bankp_state::bankp(machine_config &config)
 {
-	XTAL constexpr MASTER_CLOCK = XTAL(15'468'480);
+	XTAL constexpr MASTER_CLOCK = 15.468480_MHz_XTAL;
 
 	// basic machine hardware
 	Z80(config, m_maincpu, MASTER_CLOCK / 6);
@@ -553,16 +565,24 @@ void bankp_state::bankp(machine_config &config)
 	m_maincpu->set_addrmap(AS_IO, &bankp_state::io_map);
 
 	// video hardware
-	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
 	// PCB measured: H = 15.61khz V = 60.99hz, +/- 0.01hz
 	// --> VTOTAL should be OK, HTOTAL not 100% certain
-	m_screen->set_raw(MASTER_CLOCK / 3, 330, 0 + 3 * 8, 224 + 3 * 8, 256, 0 + 2 * 8, 224 + 2 * 8);
+	SCREEN(config, m_screen, SCREEN_TYPE_RASTER);
+	m_screen->set_raw(MASTER_CLOCK / 3, 330, 24, 248, 256, 16, 240);
 	m_screen->set_screen_update(FUNC(bankp_state::screen_update));
-	m_screen->screen_vblank().set(FUNC(bankp_state::vblank_interrupt));
+	m_screen->screen_vblank().set(FUNC(bankp_state::vblank_nmi));
 	m_screen->set_palette(m_palette);
 
 	GFXDECODE(config, m_gfxdecode, m_palette, gfx_bankp);
 	PALETTE(config, m_palette, FUNC(bankp_state::palette), 512, 32);
+
+	OUTPUT_LATCH(config, m_videolatch);
+	m_videolatch->bit_handler<0>().set(FUNC(bankp_state::priority_w<0>));
+	m_videolatch->bit_handler<1>().set(FUNC(bankp_state::priority_w<1>));
+	m_videolatch->bit_handler<2>().set(FUNC(bankp_state::display_on_w));
+	m_videolatch->bit_handler<3>().set(FUNC(bankp_state::color_hi_w));
+	m_videolatch->bit_handler<4>().set(FUNC(bankp_state::nmi_w));
+	m_videolatch->bit_handler<5>().set(FUNC(bankp_state::flip_screen_set));
 
 	// sound hardware
 	SPEAKER(config, "mono").front_center();
